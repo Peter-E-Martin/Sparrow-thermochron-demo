@@ -1,0 +1,17 @@
+#!/usr/bin/env zsh
+# Description: Import `TRaIL` data from `SPARROW_DATA_DIR/Data_Reduction_Sheet.xlsx`
+
+# This script runs on the host system and kicks off the
+# import process within a docker container. It is basically temporary boilerplate.
+# Eventually, we will replace this with a better way to kick off import processes.
+import_pipeline="${0:h:h:r}"
+
+# Run within container, mounting data directory
+# and importer code.
+sparrow compose run \
+  -e "SPARROW_DATA_DIR=/Data" \
+  -e "PYTHONPATH=/pipeline" \
+  -v "$SPARROW_DATA_DIR:/Data:ro" \
+  -v "$import_pipeline:/pipeline" \
+  backend \
+  python3 -m pipeline $@
