@@ -1,0 +1,3 @@
+[submodule "Sparrow"]
+	path = Sparrow
+	url = git://github.com/EarthCubeGeochron/Sparrow.git
