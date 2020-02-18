@@ -1,0 +1,85 @@
+- header: Owner
+  key: researcher
+- header: Full Sample Name
+  key: sample_name
+- length 1 (mm)
+- width 1 (mm)
+- length 2 (mm)
+- width 2 (mm)
+- header: 2X Term
+  parameter: Crystal termination
+  values:
+    Y: double-terminated
+    N: missing terminations
+- header: Geometry
+  parameter: Crystal geometry
+  values:
+    1: Ellipsoid
+    2: Cylinder
+    3: Orthorhombic
+    4: Hexagonal
+- header: Mineral
+  key: material
+  values:
+    z: zircon
+# No idea what this is
+- header: Np
+  skip: true
+- Dim Mass (mg)
+- rs (mm)
+- 4He (nmol/g)
+- ±
+- U (ppm)
+- ±
+- Th (ppm)
+- ±
+- Sm (ppm)
+- ±
+- eU
+- 4He (ncc)
+- ±
+- Re (%)
+- U (ng)
+- ±
+- Th (ng)
+- ±
+- Sm (ng)
+- ±
+- Th/U
+- Raw Date (Ma)
+- Raw Date It (Ma)
+- header: ±
+  error_for:
+    - 31
+    - 32
+- header: Ft
+  parameter: alpha-ejection factor
+  unit: dimensionless
+- header: Corrected Date (Ma)
+  is_calculated: true
+  is_interpreted: true
+- header: Corrected Date (It) (Ma)
+  is_calculated: true
+  is_interpreted: true
+# Analytical uncertainty is currently applied to
+# both corrected date values... maybe not the best idea?
+- header: Analytic Unc. (Ma)2s
+  unit: Ma
+  error_metric: "2s"
+  error_for:
+    - 35
+    - 36
+- skip: true
+# All percentage errors can be straightforwardly calculated from other columns.
+# Maybe we should re-import as separate (computed) data points, but for now
+# we skip these last few columns.
+- header: He ± (%)
+  skip: true
+- header: U ± (%)
+  skip: true
+- header: Th ± (%)
+  skip: true
+- header: Date ± %
+  skip: true
+- header: Notes
+  parameter: note
