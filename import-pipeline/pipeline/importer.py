@@ -13,14 +13,65 @@ from yaml import load
 from pandas import read_excel, isna
 from re import compile
 
-unit_regex = compile(r"^(.+)\s\(([a-zA-Z/\%]+)\)$")
+
 def split_unit(name):
+    """Split units (in parentheses) from the rest of the data."""
+    unit_regex = compile(r"^(.+)\s\(([a-zA-Z/\%]+)\)$")
     res = unit_regex.match(name)
     g = res.groups()
     (param, unit) = g
     return param, unit
 
+
 pp = PrettyPrinter(indent=2)
+
+
+def get_first(ls, n):
+    """Get first n items of a list"""
+    items = ls[0:n]
+    ls = ls[n:]
+    return items
+
+
+def split_attributes(vals):
+    """Split data from attributes"""
+    data = []
+    attributes = []
+    for v in vals:
+        try:
+            num = float(v['value'])
+            data.append(v)
+        except ValueError:
+            attributes.append(v)
+    return data, attributes
+
+datum_type_fields = ['parameter', 'unit', 'error_unit', 'error_metric',
+                     'is_computed', 'is_interpreted', 'description']
+attribute_fields = ['parameter', 'value']
+
+def create_datum(val):
+    v = val.pop('value')
+    err = val.pop('error', None)
+
+    type = {k: v for k, v in val.items() if k in datum_type_fields}
+
+    return {
+        'value': v,
+        'error': err,
+        'type': type
+    }
+
+def create_attribute(val):
+    return {k:v for k,v in val.items() if k in attribute_fields}
+
+def create_analysis(type, vals, **kwargs):
+    data, attributes = split_attributes(vals)
+    return dict(
+        analysis_type=type,
+        datum=[create_datum(d) for d in data],
+        attribute=[create_attribute(d) for d in attributes],
+        **kwargs)
+
 
 class TRaILImporter(BaseImporter):
     def __init__(self, db, metadata_file, **kwargs):
@@ -40,17 +91,29 @@ class TRaILImporter(BaseImporter):
         df = read_excel(fn, sheet_name="Complete Summary Table")
         assert len(self.column_spec) == len(df.columns)
 
-        for ix, row in df.iterrows():
-            # If more than 80% of columns are empty, we assume we have an empty row
-            if sum(row.isnull()) > len(df.columns)*.8:
-                continue
-            self.import_row(row)
+        self.import_projects(df)
+
+    def import_projects(self, df):
+        for name, gp in df.groupby("Owner"):
+            nsamples = len(gp)
+            project_name = f"{name} – {nsamples} samples"
+
+            project = {
+                'researcher': {'name': name},
+                'name': project_name
+            }
+
+            for ix, row in gp.iterrows():
+                # If more than 80% of columns are empty, we assume we have an empty row
+                if sum(row.isnull()) > len(df.columns)*.8:
+                    continue
+                self.import_row(project, row)
 
     def _build_specs(self, row):
         """Test each value for basic conformance with the column spec and return
         the spec and column info"""
         for i, (spec, (key, value)) in enumerate(zip(self.column_spec, row.items())):
-            ## Convert shorthand spec to dict
+            # Convert shorthand spec to dict
             if isinstance(spec, str):
                 header = spec
                 spec = {'header':  spec}
@@ -99,8 +162,10 @@ class TRaILImporter(BaseImporter):
             if error_for is None:
                 rest.append((spec, value))
                 continue
-            # We could have multiple destinations for a single error (though unlikely)
+            # We could have multiple destinations for a single
+            # error (though unlikely)
             for err_dest in ensure_sequence(error_for):
+                new_spec = {k:v for k,v in spec.items()}
                 datum_ix[err_dest] = (spec, value)
 
         for spec, value in rest:
@@ -117,17 +182,58 @@ class TRaILImporter(BaseImporter):
         specs = self._build_specs(row)
         specs_with_errors = self._apply_errors(specs)
         for spec, value, error in specs_with_errors:
-            vals = spec.pop("values", None)
-            if vals and value in vals:
-                value = vals[value]
+            vals = spec.get("values", None)
+            try:
+                spec['value'] = vals[value]
+            except (IndexError, TypeError):
+                spec['value'] = value
 
             del spec['index']
-            spec['value'] = value
             if error is not None:
                 spec['error'] = error
             yield spec
 
-    def import_row(self, row):
-        for spec in self.itervalues(row):
-            pp.pprint(spec)
-            #import IPython; IPython.embed(); raise
+    def import_row(self, project, row):
+        # Get a semi-cleaned set of values for each value
+        cleaned_data = list(self.itervalues(row))
+
+        [researcher, sample] = cleaned_data[0:2]
+
+        shape_data = cleaned_data[2:11]
+        element_data = cleaned_data[11:22]
+
+        # for spec in sample_data:
+        #     pp.pprint(spec)
+        grain_note = cleaned_data[27:]
+        shape_data += grain_note
+
+        material = shape_data.pop(-3)
+
+        shape = create_analysis('Grain shape', shape_data)
+        elements = create_analysis('Element data', element_data)
+        raw_date = create_analysis('Raw date', cleaned_data[22:24])
+        corrected_date = create_analysis('Corrected date', cleaned_data[24:27])
+
+        session = {
+            'project': project,
+            'sample': {
+                'name': sample['value'],
+                'material': 'rock'
+            },
+            'date': '2019-11-22T00:00:00',
+            'technique': {
+                "id": "(U+Th)/He thermochronology"
+            },
+            'target': {
+                'id': material['value']
+            },
+            'analysis': [
+                shape,
+                elements,
+                raw_date,
+                corrected_date
+            ]
+        }
+
+        pp.pprint(session)
+        print("")
