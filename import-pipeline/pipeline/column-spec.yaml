@@ -35,7 +35,8 @@
 - ±
 - Sm (ppm)
 - ±
-- eU
+- header: eU
+  unit: ppm
 - 4He (ncc)
 - ±
 - Re (%)
@@ -45,7 +46,8 @@
 - ±
 - Sm (ng)
 - ±
-- Th/U
+- header: Th/U
+  unit: ratio
 - Raw Date (Ma)
 - Raw Date It (Ma)
 - header: ±

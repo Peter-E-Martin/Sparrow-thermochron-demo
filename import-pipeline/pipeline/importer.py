@@ -68,7 +68,7 @@ def create_analysis(type, vals, **kwargs):
     data, attributes = split_attributes(vals)
     return dict(
         analysis_type=type,
-        datum=[create_datum(d) for d in data],
+        datum=[create_datum(d) for d in data if d is not None],
         attribute=[create_attribute(d) for d in attributes],
         **kwargs)
 
@@ -99,9 +99,10 @@ class TRaILImporter(BaseImporter):
             project_name = f"{name} – {nsamples} samples"
 
             project = {
-                'researcher': {'name': name},
                 'name': project_name
             }
+
+            print(project)
 
             for ix, row in gp.iterrows():
                 # If more than 80% of columns are empty, we assume we have an empty row
@@ -207,7 +208,7 @@ class TRaILImporter(BaseImporter):
         grain_note = cleaned_data[27:]
         shape_data += grain_note
 
-        material = shape_data.pop(-3)
+        material = shape_data.pop(-4)
 
         shape = create_analysis('Grain shape', shape_data)
         elements = create_analysis('Element data', element_data)
@@ -225,7 +226,7 @@ class TRaILImporter(BaseImporter):
                 "id": "(U+Th)/He thermochronology"
             },
             'target': {
-                'id': material['value']
+                'id': str(material['value'])
             },
             'analysis': [
                 shape,
@@ -236,4 +237,6 @@ class TRaILImporter(BaseImporter):
         }
 
         pp.pprint(session)
+        self.db.load_data("session", session)
+
         print("")
