@@ -10,7 +10,7 @@ from sparrow.import_helpers import BaseImporter, SparrowImportError
 from sparrow.util import relative_path
 from sparrow.import_helpers.util import ensure_sequence
 from yaml import load
-from pandas import read_excel, isna
+from pandas import read_excel
 from re import compile
 
 
@@ -45,9 +45,11 @@ def split_attributes(vals):
             attributes.append(v)
     return data, attributes
 
+
 datum_type_fields = ['parameter', 'unit', 'error_unit', 'error_metric',
                      'is_computed', 'is_interpreted', 'description']
 attribute_fields = ['parameter', 'value']
+
 
 def create_datum(val):
     v = val.pop('value')
@@ -61,8 +63,10 @@ def create_datum(val):
         'type': type
     }
 
+
 def create_attribute(val):
-    return {k:v for k,v in val.items() if k in attribute_fields}
+    return {k: v for k, v in val.items() if k in attribute_fields}
+
 
 def create_analysis(type, vals, **kwargs):
     data, attributes = split_attributes(vals)
@@ -82,7 +86,7 @@ class TRaILImporter(BaseImporter):
         with open(spec) as f:
             self.column_spec = load(f)
 
-        self.iterfiles([metadata_file])
+        self.iterfiles([metadata_file], **kwargs)
 
     def import_datafile(self, fn, rec, **kwargs):
         """
@@ -91,7 +95,7 @@ class TRaILImporter(BaseImporter):
         df = read_excel(fn, sheet_name="Complete Summary Table")
         assert len(self.column_spec) == len(df.columns)
 
-        self.import_projects(df)
+        yield from self.import_projects(df)
 
     def import_projects(self, df):
         for name, gp in df.groupby("Owner"):
@@ -102,17 +106,17 @@ class TRaILImporter(BaseImporter):
                 'name': project_name
             }
 
-            print(project)
-
             for ix, row in gp.iterrows():
-                # If more than 80% of columns are empty, we assume we have an empty row
+                # If more than 80% of columns are empty, we assume we have an
+                # empty row and don't import
                 if sum(row.isnull()) > len(df.columns)*.8:
                     continue
-                self.import_row(project, row)
+                yield self.import_row(project, row)
 
     def _build_specs(self, row):
-        """Test each value for basic conformance with the column spec and return
-        the spec and column info"""
+        """Test each value for basic conformance with the column specs in
+            `column-spec.yaml` and return the spec and column info.
+        """
         for i, (spec, (key, value)) in enumerate(zip(self.column_spec, row.items())):
             # Convert shorthand spec to dict
             if isinstance(spec, str):
@@ -166,7 +170,6 @@ class TRaILImporter(BaseImporter):
             # We could have multiple destinations for a single
             # error (though unlikely)
             for err_dest in ensure_sequence(error_for):
-                new_spec = {k:v for k,v in spec.items()}
                 datum_ix[err_dest] = (spec, value)
 
         for spec, value in rest:
@@ -195,7 +198,7 @@ class TRaILImporter(BaseImporter):
             yield spec
 
     def import_row(self, project, row):
-        # Get a semi-cleaned set of values for each value
+        # Get a semi-cleaned set of values for each row
         cleaned_data = list(self.itervalues(row))
 
         [researcher, sample] = cleaned_data[0:2]
@@ -237,6 +240,7 @@ class TRaILImporter(BaseImporter):
         }
 
         pp.pprint(session)
-        self.db.load_data("session", session)
+        res = self.db.load_data("session", session)
 
         print("")
+        return res
