@@ -14,5 +14,5 @@ export SPARROW_COMMANDS="$pipeline/bin"
 export COMPOSE_PROJECT_NAME="${SPARROW_LAB_NAME}"
 export SPARROW_DATA_DIR="$PROJECT_DIR/TRaIL-Data"
 
-overrides="${0:h}/sparrow-config.overrides.sh"
+overrides="${0:h}/sparrow-secrets.sh"
 [ -f "$overrides" ] && source "$overrides"
