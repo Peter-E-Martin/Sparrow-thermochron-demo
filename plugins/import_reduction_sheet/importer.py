@@ -1,5 +1,3 @@
-import numpy as N
-
 from pprint import PrettyPrinter
 from os import environ, listdir, path
 from datetime import datetime
@@ -39,29 +37,32 @@ def split_attributes(vals):
     attributes = []
     for v in vals:
         try:
-            num = float(v['value'])
+            num = float(v["value"])
             data.append(v)
         except ValueError:
             attributes.append(v)
     return data, attributes
 
 
-datum_type_fields = ['parameter', 'unit', 'error_unit', 'error_metric',
-                     'is_computed', 'is_interpreted', 'description']
-attribute_fields = ['parameter', 'value']
+datum_type_fields = [
+    "parameter",
+    "unit",
+    "error_unit",
+    "error_metric",
+    "is_computed",
+    "is_interpreted",
+    "description",
+]
+attribute_fields = ["parameter", "value"]
 
 
 def create_datum(val):
-    v = val.pop('value')
-    err = val.pop('error', None)
+    v = val.pop("value")
+    err = val.pop("error", None)
 
     type = {k: v for k, v in val.items() if k in datum_type_fields}
 
-    return {
-        'value': v,
-        'error': err,
-        'type': type
-    }
+    return {"value": v, "error": err, "type": type}
 
 
 def create_attribute(val):
@@ -74,7 +75,8 @@ def create_analysis(type, vals, **kwargs):
         analysis_type=type,
         datum=[create_datum(d) for d in data if d is not None],
         attribute=[create_attribute(d) for d in attributes],
-        **kwargs)
+        **kwargs,
+    )
 
 
 class TRaILImporter(BaseImporter):
@@ -82,7 +84,7 @@ class TRaILImporter(BaseImporter):
         super().__init__(db)
         self.verbose = kwargs.pop("verbose", False)
 
-        spec = relative_path(__file__, 'column-spec.yaml')
+        spec = relative_path(__file__, "column-spec.yaml")
         with open(spec) as f:
             self.column_spec = load(f)
 
@@ -102,36 +104,36 @@ class TRaILImporter(BaseImporter):
             nsamples = len(gp)
             project_name = f"{name} – {nsamples} samples"
 
-            project = {
-                'name': project_name
-            }
+            project = {"name": project_name}
 
             for ix, row in gp.iterrows():
                 # If more than 80% of columns are empty, we assume we have an
                 # empty row and don't import
-                if sum(row.isnull()) > len(df.columns)*.8:
+                if sum(row.isnull()) > len(df.columns) * 0.8:
                     continue
                 yield self.import_row(project, row)
 
     def _build_specs(self, row):
         """Test each value for basic conformance with the column specs in
-            `column-spec.yaml` and return the spec and column info.
+        `column-spec.yaml` and return the spec and column info.
         """
         for i, (spec, (key, value)) in enumerate(zip(self.column_spec, row.items())):
             # Convert shorthand spec to dict
             if isinstance(spec, str):
                 header = spec
-                spec = {'header':  spec}
-            header = spec.pop('header', None)
+                spec = {"header": spec}
+            header = spec.pop("header", None)
 
             # Expand ± shorthand
-            if header == '±':
+            if header == "±":
                 header = None
-                spec['error_for'] = spec.pop('error_for', i-1)
-                spec['error_metric'] = spec.pop('error_metric', '1s analytical uncertainty')
+                spec["error_for"] = spec.pop("error_for", i - 1)
+                spec["error_metric"] = spec.pop(
+                    "error_metric", "1s analytical uncertainty"
+                )
 
             # See if we should skip importing the column
-            if spec.get('skip', False):
+            if spec.get("skip", False):
                 continue
 
             if header is not None:
@@ -142,7 +144,7 @@ class TRaILImporter(BaseImporter):
             else:
                 header = key
 
-            spec['index'] = i
+            spec["index"] = i
 
             # Try to split units from column headers
             unit = None
@@ -150,10 +152,10 @@ class TRaILImporter(BaseImporter):
                 param, unit = split_unit(header)
             except (AttributeError, KeyError):
                 param = header
-            if 'parameter' not in spec:
-                spec['parameter'] = param
-            if 'unit' not in spec:
-                spec['unit'] = unit
+            if "parameter" not in spec:
+                spec["parameter"] = param
+            if "unit" not in spec:
+                spec["unit"] = unit
 
             yield spec, value
 
@@ -163,7 +165,7 @@ class TRaILImporter(BaseImporter):
         datum_ix = {}
         rest = []
         for spec, value in specs:
-            error_for = spec.get('error_for', None)
+            error_for = spec.get("error_for", None)
             if error_for is None:
                 rest.append((spec, value))
                 continue
@@ -174,11 +176,11 @@ class TRaILImporter(BaseImporter):
 
         for spec, value in rest:
             error = None
-            error_value = datum_ix.get(spec['index'], None)
+            error_value = datum_ix.get(spec["index"], None)
             if error_value is not None:
                 (err_spec, error) = error_value
                 # Set error unit given units of both error and value column
-                spec['error_unit'] = err_spec.get("unit", spec.get('unit', None))
+                spec["error_unit"] = err_spec.get("unit", spec.get("unit", None))
 
             yield spec, value, error
 
@@ -188,13 +190,13 @@ class TRaILImporter(BaseImporter):
         for spec, value, error in specs_with_errors:
             vals = spec.get("values", None)
             try:
-                spec['value'] = vals[value]
+                spec["value"] = vals[value]
             except (IndexError, TypeError):
-                spec['value'] = value
+                spec["value"] = value
 
-            del spec['index']
+            del spec["index"]
             if error is not None:
-                spec['error'] = error
+                spec["error"] = error
             yield spec
 
     def import_row(self, project, row):
@@ -213,30 +215,18 @@ class TRaILImporter(BaseImporter):
 
         material = shape_data.pop(-4)
 
-        shape = create_analysis('Grain shape', shape_data)
-        elements = create_analysis('Element data', element_data)
-        raw_date = create_analysis('Raw date', cleaned_data[22:24])
-        corrected_date = create_analysis('Corrected date', cleaned_data[24:27])
+        shape = create_analysis("Grain shape", shape_data)
+        elements = create_analysis("Element data", element_data)
+        raw_date = create_analysis("Raw date", cleaned_data[22:24])
+        corrected_date = create_analysis("Corrected date", cleaned_data[24:27])
 
         session = {
-            'project': project,
-            'sample': {
-                'name': sample['value'],
-                'material': 'rock'
-            },
-            'date': '2019-11-22T00:00:00',
-            'technique': {
-                "id": "(U+Th)/He thermochronology"
-            },
-            'target': {
-                'id': str(material['value'])
-            },
-            'analysis': [
-                shape,
-                elements,
-                raw_date,
-                corrected_date
-            ]
+            "project": project,
+            "sample": {"name": sample["value"], "material": "rock"},
+            "date": "2019-11-22T00:00:00",
+            "technique": {"id": "(U+Th)/He thermochronology"},
+            "target": {"id": str(material["value"])},
+            "analysis": [shape, elements, raw_date, corrected_date],
         }
 
         pp.pprint(session)
