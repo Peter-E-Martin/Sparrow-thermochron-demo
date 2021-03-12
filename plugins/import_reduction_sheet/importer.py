@@ -1,10 +1,6 @@
-from pprint import PrettyPrinter
-from os import environ, listdir, path
-from datetime import datetime
-from click import command, option, echo, secho, style
-from pathlib import Path
-from sparrow.database import get_or_create
-from sparrow.import_helpers import BaseImporter, SparrowImportError
+from rich import print
+from click import secho
+from sparrow.import_helpers import BaseImporter
 from sparrow.util import relative_path
 from sparrow.import_helpers.util import ensure_sequence
 from yaml import load
@@ -19,9 +15,6 @@ def split_unit(name):
     g = res.groups()
     (param, unit) = g
     return param, unit
-
-
-pp = PrettyPrinter(indent=2)
 
 
 def get_first(ls, n):
@@ -229,7 +222,7 @@ class TRaILImporter(BaseImporter):
             "analysis": [shape, elements, raw_date, corrected_date],
         }
 
-        pp.pprint(session)
+        print(session)
         res = self.db.load_data("session", session)
 
         print("")

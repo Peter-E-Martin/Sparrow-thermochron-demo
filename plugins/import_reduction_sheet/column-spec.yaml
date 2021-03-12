@@ -1,3 +1,6 @@
+# This column specification helps translate the controlled format of
+# TRaIL's data reduction sheet into standardized values for the Sparrow
+# data system.
 - header: Owner
   key: researcher
 - header: Full Sample Name

@@ -1,8 +1,8 @@
 # Configures environment for TRaIL lab
 
-export SPARROW_PATH="$SPARROW_CONFIG_DIR/Sparrow"
 export SPARROW_BACKUP_DIR="$SPARROW_CONFIG_DIR/backups"
 export SPARROW_LAB_NAME="TRaIL"
+export SPARROW_VERSION=">=2.0.0.beta1"
 
 #export SPARROW_SITE_CONTENT="$PROJECT_DIR/site-content"
 
