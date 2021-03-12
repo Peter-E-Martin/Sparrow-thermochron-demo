@@ -6,7 +6,8 @@ from sparrow.import_helpers.util import ensure_sequence
 from yaml import load
 from pandas import read_excel
 from re import compile
-
+from IPython import embed
+import numpy as N
 
 def split_unit(name):
     """Split units (in parentheses) from the rest of the data."""
@@ -92,8 +93,26 @@ class TRaILImporter(BaseImporter):
 
         yield from self.import_projects(df)
 
+    def split_grain_information(self, df):
+        # We banish underscores from sample names entirely to split.
+        # Only dashes. This simplifies our life tremendously.
+        df[["sample_name", "-", "grain"]] = df["Full Sample Name"].str.replace("_","-").str.rpartition("-")
+        # Go back to previous separators
+        df["sample_name"] = df.apply(lambda row: row["Full Sample Name"][0:len(row["sample_name"])], axis=1)
+        df.drop(columns=["-"], inplace=True) # don't need it
+
+        # Find the number of grains per sample
+        n_grains = df.pivot_table(index=['sample_name'], aggfunc='size')
+        singles = df.sample_name.isin(n_grains[n_grains == 1].index)
+        df.loc[singles, "sample_name"] = df.loc[singles,"Full Sample Name"]
+        df.loc[singles, "grain"] = N.nan
+
+        return df
+
     def import_projects(self, df):
+
         for name, gp in df.groupby("Owner"):
+            gp = self.split_grain_information(gp)
             nsamples = len(gp)
             project_name = f"{name} – {nsamples} samples"
 
@@ -213,17 +232,22 @@ class TRaILImporter(BaseImporter):
         raw_date = create_analysis("Raw date", cleaned_data[22:24])
         corrected_date = create_analysis("Corrected date", cleaned_data[24:27])
 
-        session = {
-            "project": project,
-            "sample": {"name": sample["value"], "material": "rock"},
-            "date": "2019-11-22T00:00:00",
-            "technique": {"id": "(U+Th)/He thermochronology"},
-            "target": {"id": str(material["value"])},
-            "analysis": [shape, elements, raw_date, corrected_date],
+        sample = {
+            "project": [project],
+            "name": row["Full Sample Name"],
+            "session": [{
+                "date": "2019-11-22T00:00:00",
+                "technique": {"id": "(U+Th)/He thermochronology"},
+                "target": {"id": str(material["value"])},
+                "analysis": [shape, elements, raw_date, corrected_date],
+            }]
         }
 
-        print(session)
-        res = self.db.load_data("session", session)
+        if row["grain"] is not None:
+            sample["member_of"] = {"name": row["sample_name"]}
+
+        print(sample)
+        res = self.db.load_data("sample", sample)
 
         print("")
         return res

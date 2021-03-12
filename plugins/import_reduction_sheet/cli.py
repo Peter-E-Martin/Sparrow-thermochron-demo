@@ -2,6 +2,7 @@ from click import command, option
 from sparrow.import_helpers import get_data_directory
 from sparrow.cli.util import with_database
 from .importer import TRaILImporter
+from IPython import embed
 
 from logging import getLogger, WARNING
 
