@@ -212,13 +212,26 @@ class TRaILImporter(BaseImporter):
             yield spec
 
     def import_row(self, project, row):
+        parent_sample = {
+            "project": [project],
+            "name": row["sample_name"],
+            "material": "rock", 
+        }
+        if row["grain"] is None:
+            self.db.load_data("sample", parent_sample)
+            return
+
         # Get a semi-cleaned set of values for each row
         cleaned_data = list(self.itervalues(row))
 
         [researcher, sample] = cleaned_data[0:2]
 
         shape_data = cleaned_data[2:11]
-        element_data = cleaned_data[11:22]
+        noble_gas_data = cleaned_data[11:12]
+        icp_ms_data = cleaned_data[12:15]
+        calculated_data = cleaned_data[15:22]
+        raw_date = cleaned_data[22:24]
+        corr_date = cleaned_data[24:27]
 
         # for spec in sample_data:
         #     pp.pprint(spec)
@@ -227,24 +240,50 @@ class TRaILImporter(BaseImporter):
 
         material = shape_data.pop(-4)
 
-        shape = create_analysis("Grain shape", shape_data)
-        elements = create_analysis("Element data", element_data)
-        raw_date = create_analysis("Raw date", cleaned_data[22:24])
-        corrected_date = create_analysis("Corrected date", cleaned_data[24:27])
+        # We should figure out how to not require meaningless dates
+        meaningless_date = "1900-01-01 00:00:00+00"
 
         sample = {
-            "project": [project],
+            "member_of": parent_sample,
             "name": row["Full Sample Name"],
-            "session": [{
-                "date": "2019-11-22T00:00:00",
-                "technique": {"id": "(U+Th)/He thermochronology"},
-                "target": {"id": str(material["value"])},
-                "analysis": [shape, elements, raw_date, corrected_date],
-            }]
+            "material": str(material["value"]), 
+            "session": [
+                {
+                    "technique": {"id": "Grain quality inspection"},
+                    "instrument": {"name": "Leica microscope"},
+                    "date": meaningless_date, 
+                    "analysis": [
+                        create_analysis("Grain shape", shape_data)
+                    ]
+                },
+                {
+                    "technique": {"id": "Noble-gas mass spectrometry"},
+                    "instrument": {"name": "ASI Alphachron → Pfeiffer Balzers QMS"},
+                    "date": meaningless_date,
+                    "analysis": [
+                        create_analysis("Noble gas measurements", noble_gas_data)
+                    ]
+                },
+                {
+                    "technique": "Trace element measurement",
+                    "instrument": {"name": "Agilent 7900 Quadrupole ICP-MS"},
+                    "date": meaningless_date,
+                    "analysis": [
+                        create_analysis("Element data", icp_ms_data)
+                    ]
+                },
+                {
+                    # Ideally we'd provide a date but we don't really have one
+                    "technique": {"id": "(U+Th)/He age estimation"},
+                    "date": meaningless_date,
+                    "analysis": [
+                        create_analysis("Derived parameters", calculated_data),
+                        create_analysis("Raw date", raw_date),
+                        create_analysis("Corrected date", corr_date)
+                    ],
+                }
+            ]
         }
-
-        if row["grain"] is not None:
-            sample["member_of"] = {"name": row["sample_name"]}
 
         print(sample)
         res = self.db.load_data("sample", sample)
