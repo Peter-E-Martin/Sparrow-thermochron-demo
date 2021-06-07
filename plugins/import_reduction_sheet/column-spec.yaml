@@ -1,7 +1,10 @@
+# This column specification helps translate the controlled format of
+# TRaIL's data reduction sheet into standardized values for the Sparrow
+# data system.
 - header: Owner
   key: researcher
 - header: Full Sample Name
-  key: sample_name
+  key: aliquot_name
 - length 1 (mm)
 - width 1 (mm)
 - length 2 (mm)
