@@ -74,8 +74,11 @@ def create_analysis(type, vals, **kwargs):
 
 
 class TRaILImporter(BaseImporter):
-    def __init__(self, db, metadata_file, **kwargs):
+    def __init__(self, db, data_dir, **kwargs):
         super().__init__(db)
+        metadata_file = data_dir / "Data_Reduction_Sheet.xlsx"
+        self.image_folder = data_dir / "Photographs and Measurement Data"
+
         self.verbose = kwargs.pop("verbose", False)
 
         spec = relative_path(__file__, "column-spec.yaml")
@@ -211,12 +214,28 @@ class TRaILImporter(BaseImporter):
                 spec["error"] = error
             yield spec
 
+    def link_image_files(self, row, session):
+        if row["grain"] is None:
+            return
+        sample = row["Full Sample Name"]
+        grain_images = list(self.image_folder.glob(sample+'*.tif'))
+
+        for f in grain_images:
+            rec, added = self._create_data_file_record(f)
+            model = {
+                "data_file": rec.uuid,
+                "session": session.id
+            }
+            self.db.load_data("data_file_link", model)
+
+
     def import_row(self, project, row):
         parent_sample = {
             "project": [project],
             "name": row["sample_name"],
             "material": "rock", 
         }
+
         if row["grain"] is None:
             self.db.load_data("sample", parent_sample)
             return
@@ -287,6 +306,8 @@ class TRaILImporter(BaseImporter):
 
         print(sample)
         res = self.db.load_data("sample", sample)
+
+        self.link_image_files(row, res.session_collection[0])
 
         print("")
         return res

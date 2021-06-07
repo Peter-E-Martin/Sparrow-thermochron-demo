@@ -18,7 +18,5 @@ logger = getLogger(__name__)
 def import_data(db, redo=False, stop_on_error=False, verbose=False, show_data=False):
     """Import data from TRaIL's data reduction format"""
     data_dir = get_data_directory()
-
-    fn = data_dir / "Data_Reduction_Sheet.xlsx"
     # The unit of work for a session is a row in the data-reduction sheet...
-    TRaILImporter(db, fn, redo=redo)
+    TRaILImporter(db, data_dir, redo=redo)
