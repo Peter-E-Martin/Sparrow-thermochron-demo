@@ -7,7 +7,7 @@ from yaml import load
 from pandas import read_excel
 from re import compile
 from IPython import embed
-import numpy as N
+import numpy as np
 
 def split_unit(name):
     """Split units (in parentheses) from the rest of the data."""
@@ -27,11 +27,15 @@ def get_first(ls, n):
 
 def split_attributes(vals):
     """Split data from attributes"""
+    print('vals:', vals)
     data = []
     attributes = []
     for v in vals:
         try:
-            num = float(v["value"])
+            if v["value"] == None:
+                num = None
+            else:
+                num = float(v["value"])
             data.append(v)
         except ValueError:
             attributes.append(v)
@@ -108,7 +112,7 @@ class TRaILImporter(BaseImporter):
         n_grains = df.pivot_table(index=['sample_name'], aggfunc='size')
         singles = df.sample_name.isin(n_grains[n_grains == 1].index)
         df.loc[singles, "sample_name"] = df.loc[singles,"Full Sample Name"]
-        df.loc[singles, "grain"] = N.nan
+        df.loc[singles, "grain"] = np.nan
 
         return df
 
@@ -203,6 +207,18 @@ class TRaILImporter(BaseImporter):
         specs = self._build_specs(row)
         specs_with_errors = self._apply_errors(specs)
         for spec, value, error in specs_with_errors:
+            try:
+                if np.isnan(value):
+                    # TODO: this is a temporary fix-- we want None values instead of 0 here eventually
+                    value = 0.
+                    # value = None
+            except TypeError:
+                pass
+            try:
+                if np.isnan(error):
+                    error = None
+            except TypeError:
+                pass
             vals = spec.get("values", None)
             try:
                 spec["value"] = vals[value]
@@ -242,7 +258,7 @@ class TRaILImporter(BaseImporter):
 
         # Get a semi-cleaned set of values for each row
         cleaned_data = list(self.itervalues(row))
-
+        
         [researcher, sample] = cleaned_data[0:2]
 
         shape_data = cleaned_data[2:11]
@@ -251,7 +267,7 @@ class TRaILImporter(BaseImporter):
         calculated_data = cleaned_data[15:22]
         raw_date = cleaned_data[22:24]
         corr_date = cleaned_data[24:27]
-
+        
         # for spec in sample_data:
         #     pp.pprint(spec)
         grain_note = cleaned_data[27:]
