@@ -27,7 +27,6 @@ def get_first(ls, n):
 
 def split_attributes(vals):
     """Split data from attributes"""
-    print('vals:', vals)
     data = []
     attributes = []
     for v in vals:
@@ -209,9 +208,7 @@ class TRaILImporter(BaseImporter):
         for spec, value, error in specs_with_errors:
             try:
                 if np.isnan(value):
-                    # TODO: this is a temporary fix-- we want None values instead of 0 here eventually
-                    value = 0.
-                    # value = None
+                    continue
             except TypeError:
                 pass
             try:
