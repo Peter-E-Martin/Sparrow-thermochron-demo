@@ -25,6 +25,9 @@
   key: material
   values:
     z: zircon
+    a: apatite
+    t: titanite
+    m: miscellaneous
 # No idea what this is
 - header: Np
   skip: true

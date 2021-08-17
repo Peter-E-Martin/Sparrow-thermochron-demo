@@ -24,17 +24,16 @@ def get_first(ls, n):
     ls = ls[n:]
     return items
 
-
+# Identify which dicts in the list "vals" passed to create_analysis
+# are data and which are attributes. Based on whether 'Value'-keyed
+# item in each dict is a float
 def split_attributes(vals):
     """Split data from attributes"""
     data = []
     attributes = []
     for v in vals:
         try:
-            if v["value"] == None:
-                num = None
-            else:
-                num = float(v["value"])
+            float(v["value"])
             data.append(v)
         except ValueError:
             attributes.append(v)
@@ -52,7 +51,8 @@ datum_type_fields = [
 ]
 attribute_fields = ["parameter", "value"]
 
-
+# Make dict with Datum1 schema. Requires value, uncertainty, and "type" which gives
+# parameter measured as str, unit as str, and other type fields listed above if included
 def create_datum(val):
     v = val.pop("value")
     err = val.pop("error", None)
@@ -61,20 +61,20 @@ def create_datum(val):
 
     return {"value": v, "error": err, "type": type}
 
-
+# Make dict with Attribute schema. Parameter measured as str and value as str
 def create_attribute(val):
     return {k: v for k, v in val.items() if k in attribute_fields}
 
-
+# type is a str giving a descriptive name for the kind of analysis
+# vals is list of dictionaries related to the analysis, selected from
+# the cleaned_data variable created by itervalues method
 def create_analysis(type, vals, **kwargs):
     data, attributes = split_attributes(vals)
-    return dict(
-        analysis_type=type,
-        datum=[create_datum(d) for d in data if d is not None],
-        attribute=[create_attribute(d) for d in attributes],
-        **kwargs,
-    )
-
+    return {
+        'analysis_type': type,
+        'datum': [create_datum(d) for d in data if d is not None],
+        'attribute': [create_attribute(d) for d in attributes]
+    }
 
 class TRaILImporter(BaseImporter):
     def __init__(self, db, data_dir, **kwargs):
@@ -83,11 +83,14 @@ class TRaILImporter(BaseImporter):
         self.image_folder = data_dir / "Photographs and Measurement Data"
 
         self.verbose = kwargs.pop("verbose", False)
-
+        
+        # Generate list of expected columns. Some include dict where the
+        # expected column has key "header", along with other relevant info
         spec = relative_path(__file__, "column-spec.yaml")
         with open(spec) as f:
             self.column_spec = load(f)
-
+        
+        # Calls Sparrow base code for each file in passed list and sends to import_datafile
         self.iterfiles([metadata_file], **kwargs)
 
     def import_datafile(self, fn, rec, **kwargs):
@@ -118,6 +121,8 @@ class TRaILImporter(BaseImporter):
     def import_projects(self, df):
 
         for name, gp in df.groupby("Owner"):
+            # split_grain_information adds columns for sample name and aliquot number
+            # to the main dataframe
             gp = self.split_grain_information(gp)
             nsamples = len(gp)
             project_name = f"{name} – {nsamples} samples"
@@ -129,6 +134,8 @@ class TRaILImporter(BaseImporter):
                 # empty row and don't import
                 if sum(row.isnull()) > len(df.columns) * 0.8:
                     continue
+                # This line calls import_row, which triggers the building of the
+                # sample schema that ultimately is imported to the database
                 yield self.import_row(project, row)
 
     def _build_specs(self, row):
@@ -137,12 +144,18 @@ class TRaILImporter(BaseImporter):
         """
         for i, (spec, (key, value)) in enumerate(zip(self.column_spec, row.items())):
             # Convert shorthand spec to dict
+            # For items in column-spec.yaml that are only a decriptive str, create
+            # dict where "header" is the passed spec. Otherwise, remove the "header"
+            # item from the dict and create a variable called header with its value
             if isinstance(spec, str):
                 header = spec
                 spec = {"header": spec}
             header = spec.pop("header", None)
 
-            # Expand ± shorthand
+            # Expand ± shorthand by including "error_for" key with a value equal
+            # to that passed in column-spec.yaml (if included) or the preceding
+            #column's index. This is used in _apply_errors to link the uncertainty
+            # and value for a given datum
             if header == "±":
                 header = None
                 spec["error_for"] = spec.pop("error_for", i - 1)
@@ -150,10 +163,12 @@ class TRaILImporter(BaseImporter):
                     "error_metric", "1s analytical uncertainty"
                 )
 
-            # See if we should skip importing the column
+            # See if we should skip importing the column based on column-spec.yaml
+            # continue statements in a yield function return nothing
             if spec.get("skip", False):
                 continue
 
+            # if dictionary is passed and doesn't include header, assign to column name
             if header is not None:
                 try:
                     assert header == key
@@ -161,10 +176,11 @@ class TRaILImporter(BaseImporter):
                     secho(f"Header {header} does not match {key}")
             else:
                 header = key
-
+            
+            # Add column index to ID assoc uncertainty columns later
             spec["index"] = i
 
-            # Try to split units from column headers
+            # Try to split units from column headers using split_unit function
             unit = None
             try:
                 param, unit = split_unit(header)
@@ -174,7 +190,7 @@ class TRaILImporter(BaseImporter):
                 spec["parameter"] = param
             if "unit" not in spec:
                 spec["unit"] = unit
-
+            
             yield spec, value
 
     def _apply_errors(self, specs):
@@ -199,30 +215,42 @@ class TRaILImporter(BaseImporter):
                 (err_spec, error) = error_value
                 # Set error unit given units of both error and value column
                 spec["error_unit"] = err_spec.get("unit", spec.get("unit", None))
-
+            
             yield spec, value, error
-
+            
+    # Tool to build each component schema primarily using the column-spec.yaml file.
+    # Begins with all but values and errors and adds the "value" and "error" keys to
+    # the dict with their numerical values.
+    # This is done with yield statements, making the flow a little difficult to follow
+    # because the code will execute in chunks that bounce back and forth.
     def itervalues(self, row):
         specs = self._build_specs(row)
         specs_with_errors = self._apply_errors(specs)
         for spec, value, error in specs_with_errors:
+            # If excel error in value, change to 'N/A' string
             try:
                 if np.isnan(value):
-                    continue
+                    value = 'N/A'
             except TypeError:
                 pass
+            # If excel error in an uncertainty, change to None
             try:
                 if np.isnan(error):
                     error = None
             except TypeError:
                 pass
+            # if a discrete set of values is allowed (e.g., mineral type)
+            # set the value of the parameter to the correct value
             vals = spec.get("values", None)
             try:
                 spec["value"] = vals[value]
             except (IndexError, TypeError):
                 spec["value"] = value
-
+            
+            # Delete index value from dictionary
             del spec["index"]
+            
+            # If the value has an associted uncertainty, include it in the yielded dict
             if error is not None:
                 spec["error"] = error
             yield spec
@@ -241,7 +269,8 @@ class TRaILImporter(BaseImporter):
             }
             self.db.load_data("data_file_link", model)
 
-
+    # Main method to build the sample schema. The majority of the work
+    # is done by the itervalues method and create_analysis function
     def import_row(self, project, row):
         parent_sample = {
             "project": [project],
@@ -257,16 +286,19 @@ class TRaILImporter(BaseImporter):
         cleaned_data = list(self.itervalues(row))
         
         [researcher, sample] = cleaned_data[0:2]
-
+        
         shape_data = cleaned_data[2:11]
         noble_gas_data = cleaned_data[11:12]
         icp_ms_data = cleaned_data[12:15]
+        if icp_ms_data[2]['value'] == 0 and shape_data[6]['value'] == 'zircon':
+            icp_ms_data[2]['value'] = 'N.M.'
         calculated_data = cleaned_data[15:22]
+        if calculated_data[5]['value'] == 0 and shape_data[6]['value'] == 'zircon':
+            calculated_data[5]['value'] = 'N.M.'
+            calculated_data[5]['error'] = None
         raw_date = cleaned_data[22:24]
         corr_date = cleaned_data[24:27]
         
-        # for spec in sample_data:
-        #     pp.pprint(spec)
         grain_note = cleaned_data[27:]
         shape_data += grain_note
 
@@ -274,16 +306,23 @@ class TRaILImporter(BaseImporter):
 
         # We should figure out how to not require meaningless dates
         meaningless_date = "1900-01-01 00:00:00+00"
-
+        
+        # Build sample schema using row of imported data
         sample = {
             "member_of": parent_sample,
             "name": row["Full Sample Name"],
             "material": str(material["value"]), 
+            # Here we pass a list of dicts instead of a single dict
+            # because each (U-Th)/He analysis consists of three
+            # individual sessions
             "session": [
                 {
                     "technique": {"id": "Grain quality inspection"},
                     "instrument": {"name": "Leica microscope"},
                     "date": meaningless_date, 
+                    # analysis is passed a list of dicts, where each dict is displayed
+                    # as a single box on the front end. create_analysis function is 
+                    # critical to the bulk of information ultimately included in Sparrow
                     "analysis": [
                         create_analysis("Grain shape", shape_data)
                     ]
@@ -316,10 +355,12 @@ class TRaILImporter(BaseImporter):
                 }
             ]
         }
-
+                
         print(sample)
         res = self.db.load_data("sample", sample)
-
+        
+        # I think this line should be working with images eventually.
+        # Not sure it's doing anything for now
         self.link_image_files(row, res.session_collection[0])
 
         print("")
