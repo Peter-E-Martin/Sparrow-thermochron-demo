@@ -8,6 +8,7 @@ from pandas import read_excel
 from re import compile
 from IPython import embed
 import numpy as np
+import glob
 
 def split_unit(name):
     """Split units (in parentheses) from the rest of the data."""
@@ -79,7 +80,7 @@ def create_analysis(type, vals, **kwargs):
 class TRaILImporter(BaseImporter):
     def __init__(self, db, data_dir, **kwargs):
         super().__init__(db)
-        metadata_file = data_dir / "Data_Reduction_Sheet.xlsx"
+        file_list = glob.glob(str(data_dir)+'/*.xlsx')
         self.image_folder = data_dir / "Photographs and Measurement Data"
 
         self.verbose = kwargs.pop("verbose", False)
@@ -91,7 +92,7 @@ class TRaILImporter(BaseImporter):
             self.column_spec = load(f)
         
         # Calls Sparrow base code for each file in passed list and sends to import_datafile
-        self.iterfiles([metadata_file], **kwargs)
+        self.iterfiles(file_list, **kwargs)
 
     def import_datafile(self, fn, rec, **kwargs):
         """
