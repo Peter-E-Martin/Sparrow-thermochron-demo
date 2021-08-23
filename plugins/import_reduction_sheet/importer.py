@@ -98,6 +98,9 @@ class TRaILImporter(BaseImporter):
         """
         Import an original data file
         """
+        # TODO identify which version of the data reduction sheet is in each passed file
+        # TODO make column spec file for each version of the data reduction sheet
+        # May be easier to open the column spec file here
         df = read_excel(fn, sheet_name="Complete Summary Table")
         assert len(self.column_spec) == len(df.columns)
 
@@ -175,6 +178,8 @@ class TRaILImporter(BaseImporter):
                     assert header == key
                 except AssertionError:
                     secho(f"Header {header} does not match {key}")
+                    # embed()
+                    # raise
             else:
                 header = key
             
@@ -316,6 +321,7 @@ class TRaILImporter(BaseImporter):
             # Here we pass a list of dicts instead of a single dict
             # because each (U-Th)/He analysis consists of three
             # individual sessions
+            # "project": [{'name':'fakeproject'}, {'name':'fakeproject2'}],
             "session": [
                 {
                     "technique": {"id": "Grain quality inspection"},
