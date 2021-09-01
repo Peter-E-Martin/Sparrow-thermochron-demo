@@ -6,3 +6,5 @@ lab under Becky Flowers.
 
 A working version of this demo can be found at
 [Sparrow's documentation website](https://sparrow-data.org/labs/thermochron-demo)
+
+*THIS FORK HAS MERGED WITH THE MAIN REPOSITORY AND ARCHIVED*
